@@ -3,6 +3,10 @@
 #include <vector>
 #include "FiniteFunctions.h"
 #include <filesystem> //To check extensions in a nice way
+#include <cmath>
+#include <random>
+#include <algorithm>
+
 
 #include "gnuplot-iostream.h" //Needed to produce plots (not part of the course) 
 
@@ -13,19 +17,19 @@ FiniteFunction::FiniteFunction(){
   m_RMin = -5.0;
   m_RMax = 5.0;
   this->checkPath("DefaultFunction");
-  m_Integral = NULL;
+  m_Integral = NULL;     
 }
 
 //initialised constructor
 FiniteFunction::FiniteFunction(double range_min, double range_max, std::string outfile){
   m_RMin = range_min;
   m_RMax = range_max;
-  m_Integral = NULL;
+  m_Integral = NULL;    
   this->checkPath(outfile); //Use provided string to name output files
 }
 
 //Plots are called in the destructor
-//SUPACPP note: They syntax of the plotting code is not part of the course
+//SUPACPP note: The syntax of the plotting code is not part of the course
 FiniteFunction::~FiniteFunction(){
   Gnuplot gp; //Set up gnuplot object
   this->generatePlot(gp); //Generate the plot and save it to a png using "outfile" for naming 
@@ -62,20 +66,59 @@ Integration by hand (output needed to normalise function when plotting)
 ###################
 */ 
 double FiniteFunction::integrate(int Ndiv){ //private
-  //ToDo write an integrator
-  return -99;  
+  double dx = (m_RMax - m_RMin)/Ndiv;
+  double integral{0.0};
+  for (int i=0; i<Ndiv; i++){
+    integral += this->callFunction(m_RMin + i*dx + dx/2);
+  }
+  integral *= dx;
+  return integral;  
 }
 double FiniteFunction::integral(int Ndiv) { //public
   if (Ndiv <= 0){
     std::cout << "Invalid number of divisions for integral, setting Ndiv to 1000" <<std::endl;
     Ndiv = 1000;
   }
-  if (m_Integral == NULL || Ndiv != m_IntDiv){
+  if (m_Integral == NULL || Ndiv != m_IntDiv){                    
     m_IntDiv = Ndiv;
     m_Integral = this->integrate(Ndiv);
     return m_Integral;
   }
   else return m_Integral; //Don't bother re-calculating integral if Ndiv is the same as the last call
+}
+
+/*
+###################
+Sample data
+###################
+*/ 
+std::vector<double> FiniteFunction::sampleData(const int Ndata){
+  std::vector<double> sampledData{};      //vector where sampled data will be stored
+  int count{0};                           // this counts the sampled data
+  double x{0.0};
+  double y{0.0};
+  double A{0.0};
+  double T{0.0};
+  double sigmad = 3;   //sigma of the normal distribution used in metropolis algorithm. The value has been optimized
+  std::random_device rd;
+  std::mt19937 mtEngine{rd()};
+  std::uniform_real_distribution<double> uniformPDF{m_RMin, m_RMax};
+  std::normal_distribution<double> gaussianPDF{0, sigmad};
+  std::uniform_real_distribution<double> uniformPDF1{0, 1};
+
+  x = uniformPDF(mtEngine);         //implementing the metropolis algorithm
+  while(count<Ndata){
+    gaussianPDF.param(std::normal_distribution<double>::param_type{x,sigmad});
+    y = gaussianPDF(mtEngine);
+    A = std::min(this->callFunction(y)/this->callFunction(x), 1.0);
+    T = uniformPDF1(mtEngine);
+    if (T<A){
+      sampledData.push_back(y);
+      count ++;
+      x=y;
+    }
+  }
+  return sampledData;
 }
 
 /*
@@ -139,8 +182,9 @@ std::vector< std::pair<double,double> > FiniteFunction::scanFunction(int Nscan){
   std::vector< std::pair<double,double> > function_scan;
   double step = (m_RMax - m_RMin)/(double)Nscan;
   double x = m_RMin;
+  
   //We use the integral to normalise the function points
-  if (m_Integral == NULL) {
+  if (m_Integral == NULL) {                                                 
     std::cout << "Integral not set, doing it now" << std::endl;
     this->integral(Nscan);
     std::cout << "integral: " << m_Integral << ", calculated using " << Nscan << " divisions" << std::endl;
@@ -179,7 +223,7 @@ std::vector< std::pair<double,double> > FiniteFunction::makeHist(std::vector<dou
 
 //Function which handles generating the gnuplot output, called in destructor
 //If an m_plot... flag is set, the we must have filled the related data vector
-//SUPACPP note: They syntax of the plotting code is not part of the course
+//SUPACPP note: The syntax of the plotting code is not part of the course
 void FiniteFunction::generatePlot(Gnuplot &gp){
 
   if (m_plotfunction==true && m_plotdatapoints==true && m_plotsamplepoints==true){

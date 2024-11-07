@@ -24,6 +24,9 @@ public:
   virtual void printInfo(); //Dump parameter info about the current function (Overridable)
   virtual double callFunction(double x); //Call the function with value x (Overridable)
 
+  //Sample data
+  std::vector<double> sampleData(const int Ndata);    //function that samples Ndata data points from the distribution defined by callFunction
+
   //Protected members can be accessed by child classes but not users
 protected:
   double m_RMin;
